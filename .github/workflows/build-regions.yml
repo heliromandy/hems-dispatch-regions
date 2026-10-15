@@ -1,0 +1,104 @@
+# Builds the HEMS Dispatch region files from OpenStreetMap (Geofabrik extracts) and publishes them
+# in the release "regions" of this repository, with index.json (the list the app downloads).
+name: Build regions
+
+on:
+  workflow_dispatch:
+    inputs:
+      regions:
+        description: "all, or ids separated by commas: a country (switzerland), a sub-region (bayern) or a continent (europe)"
+        required: true
+        default: "switzerland"
+      split_mb:
+        description: "Countries larger than this (MB of OSM data) are split into their sub-regions"
+        required: false
+        default: "900"
+  schedule:
+    - cron: "17 2 1 1,4,7,10 *"   # full refresh every three months
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-regions
+  cancel-in-progress: false
+
+env:
+  RELEASE: regions
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Plan
+        id: plan
+        run: |
+          python pipeline/plan.py --select "${{ github.event.inputs.regions || 'all' }}" \
+            --split-mb "${{ github.event.inputs.split_mb || '900' }}" --out plan.json --matrix matrix.json
+          echo "matrix=$(cat matrix.json)" >> "$GITHUB_OUTPUT"
+      - name: Release
+        run: |
+          gh release view "$RELEASE" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+          gh release create "$RELEASE" --repo "$GITHUB_REPOSITORY" --title "HEMS Dispatch region data" \
+            --notes "Region files for HEMS Dispatch, built from OpenStreetMap. Map data (c) OpenStreetMap contributors, ODbL 1.0."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plan
+          path: plan.json
+
+  build:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/osm-builder/requirements.txt
+      - name: Libraries
+        run: pip install "osmium>=4.0" "shapely>=2.0" "pyproj>=3.6" "numpy>=1.26"
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan
+      - name: Build job ${{ matrix.chunk }}
+        run: |
+          export GH_REPO="$GITHUB_REPOSITORY"
+          python pipeline/build_chunk.py --plan plan.json --chunk ${{ matrix.chunk }} --out out --release "$RELEASE"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: meta-${{ matrix.chunk }}
+          path: out/meta
+          if-no-files-found: ignore
+
+  index:
+    needs: [plan, build]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: meta-*
+          path: metas
+      - name: index.json
+        run: |
+          gh release download "$RELEASE" --repo "$GITHUB_REPOSITORY" --pattern index.json --output old_index.json 2>/dev/null || true
+          python pipeline/merge_index.py --metas metas --previous old_index.json --out index.json
+          gh release upload "$RELEASE" index.json --clobber --repo "$GITHUB_REPOSITORY"
