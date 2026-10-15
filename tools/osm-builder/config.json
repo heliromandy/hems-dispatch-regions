@@ -1,0 +1,79 @@
+{
+  "_comment": "Parameters for build_hems_db.py. Distances in metres, angles in degrees.",
+
+  "lz": {
+    "min_clear_radius_m": 30,
+    "require_disc_inside_area": true,
+    "min_area_m2": 1500,
+    "grid_spacing_m": 250,
+    "max_slope_deg": 8,
+    "open_areas": {
+      "leisure": ["pitch", "recreation_ground"],
+      "landuse": ["meadow", "grass", "farmland", "recreation_ground", "village_green", "greenfield"],
+      "natural": ["grassland", "heath", "fell"]
+    },
+    "pitch_excluded_sports": ["tennis", "basketball", "skateboard", "padel", "squash", "volleyball", "table_tennis", "boules", "shooting"]
+  },
+
+  "obstacles": {
+    "_comment": "buffer_m is added to the clear radius for this kind of obstacle (wires, cables need more margin).",
+    "areas": {
+      "landuse=forest": 0,
+      "natural=wood": 0,
+      "natural=scrub": 0,
+      "natural=water": 0,
+      "natural=wetland": 0,
+      "waterway=riverbank": 0,
+      "landuse=reservoir": 0,
+      "landuse=basin": 0,
+      "landuse=quarry": 0,
+      "landuse=orchard": 0,
+      "landuse=vineyard": 0,
+      "landuse=allotments": 0,
+      "landuse=construction": 0
+    },
+    "lines": {
+      "power=line": 40,
+      "power=minor_line": 25,
+      "aerialway=*": 50,
+      "railway=rail": 25,
+      "railway=light_rail": 20,
+      "railway=tram": 15,
+      "highway=motorway": 20,
+      "highway=trunk": 15,
+      "highway=primary": 10,
+      "natural=tree_row": 5,
+      "barrier=wall": 2
+    },
+    "points": {
+      "power=tower": 25,
+      "power=pole": 10,
+      "man_made=mast": 40,
+      "man_made=tower": 30,
+      "man_made=chimney": 30,
+      "man_made=communications_tower": 60,
+      "aerialway=pylon": 40,
+      "generator:source=wind": 120,
+      "natural=tree": 5
+    },
+    "buildings": true,
+    "building_buffer_m": 5
+  },
+
+  "hospitals": {
+    "helipad_max_dist_m": 400
+  },
+
+  "sites": {
+    "thin_cell_m": 400,
+    "line_sample_spacing_m": 500,
+    "site_to_lz_max_m": 1852,
+    "lz_alternatives": 3
+  },
+
+  "dem": {
+    "_comment": "Optional. Glob of GeoTIFF elevation tiles in WGS84 (e.g. Copernicus GLO-30). Leave empty to skip altitude and slope.",
+    "glob": "",
+    "slope_probe_m": 30
+  }
+}
